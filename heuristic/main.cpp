@@ -31,11 +31,12 @@ namespace heuristic {
 
 int main() {
   ocm::Task task = ocm::Task::FromStream(std::cin);
-  std::cout << "a_size = " << task.a_size << ", b_size = " << task.b_size
+  std::cerr << "a_size = " << task.a_size << ", b_size = " << task.b_size
             << ", edges_count = " << task.edges.size() << "\n";
-  std::cout << "trivial_score = "
+  std::cerr << "trivial_score = "
             << ocm::CountIntersections(task, ocm::heuristic::trivial::Solve(task)) << "\n";
-  std::cout << "random_score = "
+  std::cerr << "random_score = "
             << ocm::CountIntersections(task, ocm::heuristic::random::Solve(task)) << "\n";
+  ocm::SaveSolution(task, ocm::heuristic::random::Solve(task), std::cout);
   return 0;
 }

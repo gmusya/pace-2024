@@ -23,6 +23,8 @@ struct Task {
   static Task FromFile(const std::string& path);
 };
 
+void SaveSolution(const Task& task, const Solution& solution, std::ostream& os);
+
 uint64_t CountIntersections(const Task& task, const Solution& solution);
 
 }// namespace ocm

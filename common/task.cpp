@@ -53,6 +53,20 @@ Task Task::FromFile(const std::string& path) {
   return FromStream(is);
 }
 
+void SaveSolution(const Task& task, const Solution& solution, std::ostream& os) {
+  ENSURE_OR_THROW(IsSolutionValid(task, solution));
+
+  Solution inverse_solution(solution.size());
+
+  for (Vertex v = 0; v < solution.size(); ++v) {
+    inverse_solution[solution[v]] = v;
+  }
+
+  for (const auto& v : inverse_solution) {
+    os << v + task.a_size + 1 << '\n';
+  }
+}
+
 #if 0
 // O(E^2)
 uint64_t CountIntersections(const Task& task, const Solution& solution) {
