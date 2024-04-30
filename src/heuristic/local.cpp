@@ -1,5 +1,6 @@
 #include "heuristic/local.h"
 #include "common/task.h"
+#include <chrono>
 #include <cstdint>
 #include <vector>
 
@@ -36,6 +37,7 @@ namespace heuristic {
     }// namespace
 
     Positions Optimize(const Task& task, const Positions& positions) {
+      auto start = std::chrono::steady_clock::now();
       Solution solution = PositionsToSolution(positions);
       std::vector<std::vector<Vertex>> graph(task.b_size);
       for (const auto& [u, v] : task.edges) {
@@ -46,6 +48,11 @@ namespace heuristic {
       }
       uint64_t steps = 0;
       while (true) {
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - start);
+        if (duration.count() > 180) {
+          break;
+        }
         bool optimized = false;
         Position p = 0;
         for (p = 0; p + 1 < positions.size(); ++p) {

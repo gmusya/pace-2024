@@ -84,6 +84,22 @@ namespace heuristic {
     using Weight = int64_t;
     using Matrix = std::vector<std::vector<Weight>>;
 
+    std::vector<Weight> BuildWeights(const Task& task,
+                                     const std::vector<std::vector<Vertex>>& neighbors, Vertex v) {
+      std::vector<Weight> result(task.b_size);
+      Weight current_weight = std::accumulate(neighbors[v].begin(), neighbors[v].end(), 0);
+      Vertex left_from_me = 0;
+      for (Position position = 0; position < task.b_size; ++position) {
+        result[position] = current_weight;
+        if (left_from_me < neighbors[v].size() && position == neighbors[v][left_from_me]) {
+          ++left_from_me;
+        }
+        current_weight += left_from_me;
+        current_weight -= neighbors[v].size() - left_from_me;
+      }
+      return result;
+    }
+
     Matrix BuildMatrix(const Task& task) {
       ENSURE_OR_THROW(static_cast<uint64_t>(task.b_size) * task.b_size * sizeof(Weight) * 2 <
                       kMemoryLimitBytes);
@@ -96,27 +112,15 @@ namespace heuristic {
 
       for (Vertex v = 0; v < task.b_size; ++v) {
         std::sort(neighbors[v].begin(), neighbors[v].end());
-
-        Weight current_weight = std::accumulate(neighbors[v].begin(), neighbors[v].end(), 0);
-        Vertex left_from_me = 0;
-        for (Position position = 0; position < task.b_size; ++position) {
-          matrix[v][position] = current_weight;
-          if (left_from_me < neighbors[v].size() && position == neighbors[v][left_from_me]) {
-            ++left_from_me;
-          }
-          current_weight += left_from_me;
-          current_weight -= neighbors[v].size() - left_from_me;
-        }
+        matrix[v] = BuildWeights(task, neighbors, v);
       }
 
       return matrix;
     }
 
     Positions Solve(const Task& task) {
-      auto matrix = BuildMatrix(task);
-      // TODO: use hungarian algorithm
-
-      if (task.b_size < 3000) {
+      if (task.b_size < 6000) {
+        auto matrix = BuildMatrix(task);
         std::vector<std::vector<int64_t>> weights(task.b_size + 1,
                                                   std::vector<int64_t>(task.b_size + 1));
         for (Vertex v = 0; v < task.b_size; ++v) {
@@ -134,13 +138,19 @@ namespace heuristic {
         return positions;
       }
 
+      std::vector<std::vector<Vertex>> neighbors(task.b_size);
+      for (const auto& [u, v] : task.edges) {
+        neighbors[v].emplace_back(u);
+      }
+
       std::vector<bool> position_is_taken(task.b_size);
       Positions positions(task.b_size);
       for (Vertex v = 0; v < task.b_size; ++v) {
         std::vector<Vertex> permutation(task.b_size);
         std::iota(permutation.begin(), permutation.end(), 0);
+        auto weights = BuildWeights(task, neighbors, v);
         std::sort(permutation.begin(), permutation.end(), [&](Vertex lhs, Vertex rhs) {
-          return matrix[v][lhs] < matrix[v][rhs];
+          return weights[lhs] < weights[rhs];
         });
         for (Position position : permutation) {
           if (position_is_taken[position]) {
@@ -194,12 +204,8 @@ int main(int argc, char** argv) {
   std::cerr << "matrix_size = " << matrix_size << ", matrix_size = " << bytes << "\n";
 
   ocm::Positions positions;
-  if (bytes * 2 >= ocm::heuristic::kMemoryLimitBytes) {
-    std::cerr << "Fallback to trivial solution\n";
-    positions = ocm::heuristic::trivial::Solve(task);
-  } else {
-    positions = ocm::heuristic::greedy::Solve(task);
-  }
+  positions = ocm::heuristic::greedy::Solve(task);
+
   std::cerr << "final_score = " << ocm::CountIntersections(task, positions) << "\n";
   ocm::SaveSolution(task, positions, os);
   return 0;
