@@ -1,19 +1,12 @@
 #include "common/task.h"
 
+#include <fstream>
 #include <numeric>
 #include <random>
 
 namespace ocm {
 
 namespace heuristic {
-
-  namespace trivial {
-    Solution Solve(const Task& task) {
-      Solution solution(task.b_size);
-      std::iota(solution.begin(), solution.end(), 0);
-      return solution;
-    }
-  }// namespace trivial
 
   namespace random {
     Solution Solve(const Task& task) {
@@ -29,14 +22,18 @@ namespace heuristic {
 
 }// namespace ocm
 
-int main() {
-  ocm::Task task = ocm::Task::FromStream(std::cin);
+int main(int argc, char** argv) {
+  if (argc != 3) {
+    std::cerr << "Usage: " << argv[0] << " <input-file.gr> <output-file.sol>\n";
+    return 1;
+  }
+  std::ifstream is(argv[1]);
+  std::ofstream os(argv[2]);
+  ocm::Task task = ocm::Task::FromStream(is);
   std::cerr << "a_size = " << task.a_size << ", b_size = " << task.b_size
             << ", edges_count = " << task.edges.size() << "\n";
-  std::cerr << "trivial_score = "
-            << ocm::CountIntersections(task, ocm::heuristic::trivial::Solve(task)) << "\n";
   std::cerr << "random_score = "
             << ocm::CountIntersections(task, ocm::heuristic::random::Solve(task)) << "\n";
-  ocm::SaveSolution(task, ocm::heuristic::random::Solve(task), std::cout);
+  ocm::SaveSolution(task, ocm::heuristic::random::Solve(task), os);
   return 0;
 }
