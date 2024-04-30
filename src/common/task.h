@@ -25,6 +25,10 @@ struct Task {
   static Task FromFile(const std::string& path);
 };
 
+Positions SolutionToPositions(const Solution& solution);
+
+Solution PositionsToSolution(const Positions& positions);
+
 void SaveSolution(const Task& task, const Positions& positions, std::ostream& os);
 
 uint64_t CountIntersections(const Task& task, const Positions& positions);

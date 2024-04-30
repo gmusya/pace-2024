@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <fstream>
+#include <iostream>
 #include <sys/types.h>
 
 namespace ocm {
@@ -56,15 +57,27 @@ Task Task::FromFile(const std::string& path) {
 void SaveSolution(const Task& task, const Positions& positions, std::ostream& os) {
   ENSURE_OR_THROW(IsPositionsValid(task, positions));
 
-  Solution solution(positions.size());
-
-  for (Vertex v = 0; v < positions.size(); ++v) {
-    solution[positions[v]] = v;
-  }
+  Solution solution = PositionsToSolution(positions);
 
   for (const auto& v : solution) {
     os << v + task.a_size + 1 << '\n';
   }
+}
+
+Positions SolutionToPositions(const Solution& solution) {
+  Positions result(solution.size());
+  for (Position v = 0; v < solution.size(); ++v) {
+    result[solution[v]] = v;
+  }
+  return result;
+}
+
+Solution PositionsToSolution(const Positions& positions) {
+  Solution result(positions.size());
+  for (Vertex v = 0; v < positions.size(); ++v) {
+    result[positions[v]] = v;
+  }
+  return result;
 }
 
 #if 0

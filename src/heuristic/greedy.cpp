@@ -1,6 +1,9 @@
 #include "common/assert.h"
 #include "common/task.h"
 
+#include "heuristic/local.h"
+
+#include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -124,6 +127,9 @@ namespace heuristic {
 
         auto solution_hungraian = hungarian::Hungarian(weights);
         Positions positions(solution_hungraian.begin(), solution_hungraian.end());
+        std::cerr << "before_optimizations = " << CountIntersections(task, positions) << "\n";
+        positions = local::Optimize(task, positions);
+        std::cerr << "after_optimizations = " << CountIntersections(task, positions) << "\n";
 
         return positions;
       }
@@ -145,7 +151,9 @@ namespace heuristic {
           break;
         }
       }
-
+      std::cerr << "before_optimizations = " << CountIntersections(task, positions) << "\n";
+      positions = local::Optimize(task, positions);
+      std::cerr << "after_optimizations = " << CountIntersections(task, positions) << "\n";
       return positions;
     }
 
