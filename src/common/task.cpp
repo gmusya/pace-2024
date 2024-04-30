@@ -8,14 +8,14 @@
 namespace ocm {
 
 namespace {
-  bool IsSolutionValid(const Task& task, const Solution& solution) {
-    if (solution.size() != task.b_size) {
+  bool IsPositionsValid(const Task& task, const Positions& positions) {
+    if (positions.size() != task.b_size) {
       return false;
     }
-    Solution sol = solution;
-    std::sort(sol.begin(), sol.end());
-    for (Vertex i = 0; i < sol.size(); ++i) {
-      if (sol[i] != i) {
+    Positions pos = positions;
+    std::sort(pos.begin(), pos.end());
+    for (Position i = 0; i < pos.size(); ++i) {
+      if (pos[i] != i) {
         return false;
       }
     }
@@ -53,16 +53,16 @@ Task Task::FromFile(const std::string& path) {
   return FromStream(is);
 }
 
-void SaveSolution(const Task& task, const Solution& solution, std::ostream& os) {
-  ENSURE_OR_THROW(IsSolutionValid(task, solution));
+void SaveSolution(const Task& task, const Positions& positions, std::ostream& os) {
+  ENSURE_OR_THROW(IsPositionsValid(task, positions));
 
-  Solution inverse_solution(solution.size());
+  Solution solution(positions.size());
 
-  for (Vertex v = 0; v < solution.size(); ++v) {
-    inverse_solution[solution[v]] = v;
+  for (Vertex v = 0; v < positions.size(); ++v) {
+    solution[positions[v]] = v;
   }
 
-  for (const auto& v : inverse_solution) {
+  for (const auto& v : solution) {
     os << v + task.a_size + 1 << '\n';
   }
 }
@@ -70,7 +70,7 @@ void SaveSolution(const Task& task, const Solution& solution, std::ostream& os) 
 #if 0
 // O(E^2)
 uint64_t CountIntersections(const Task& task, const Solution& solution) {
-  ENSURE_OR_THROW(IsSolutionValid(task, solution));
+  ENSURE_OR_THROW(IsPositionsValid(task, solution));
   uint64_t result = 0;
   for (uint32_t ind1 = 0; ind1 < task.edges.size(); ++ind1) {
     for (uint32_t ind2 = ind1 + 1; ind2 < task.edges.size(); ++ind2) {
@@ -122,12 +122,12 @@ private:
 }// namespace
 
 // O(E log V)
-uint64_t CountIntersections(const Task& task, const Solution& solution) {
-  ENSURE_OR_THROW(IsSolutionValid(task, solution));
+uint64_t CountIntersections(const Task& task, const Positions& positions) {
+  ENSURE_OR_THROW(IsPositionsValid(task, positions));
 
   std::vector<std::vector<Vertex>> neighbors(task.a_size);
   for (const auto& [u, v] : task.edges) {
-    neighbors[u].push_back(solution[v]);
+    neighbors[u].push_back(positions[v]);
   }
 
   FenwickTree fenwick_tree(task.b_size);

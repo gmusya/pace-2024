@@ -96,7 +96,7 @@ namespace heuristic {
 
         Weight current_weight = std::accumulate(neighbors[v].begin(), neighbors[v].end(), 0);
         Vertex left_from_me = 0;
-        for (Vertex position = 0; position < task.b_size; ++position) {
+        for (Position position = 0; position < task.b_size; ++position) {
           matrix[v][position] = current_weight;
           if (left_from_me < neighbors[v].size() && position == neighbors[v][left_from_me]) {
             ++left_from_me;
@@ -109,7 +109,7 @@ namespace heuristic {
       return matrix;
     }
 
-    Solution Solve(const Task& task) {
+    Positions Solve(const Task& task) {
       auto matrix = BuildMatrix(task);
       // TODO: use hungarian algorithm
 
@@ -117,46 +117,46 @@ namespace heuristic {
         std::vector<std::vector<int64_t>> weights(task.b_size + 1,
                                                   std::vector<int64_t>(task.b_size + 1));
         for (Vertex v = 0; v < task.b_size; ++v) {
-          for (Vertex p = 0; p < task.b_size; ++p) {
+          for (Position p = 0; p < task.b_size; ++p) {
             weights[v + 1][p + 1] = matrix[v][p];
           }
         }
 
         auto solution_hungraian = hungarian::Hungarian(weights);
-        Solution solution(solution_hungraian.begin(), solution_hungraian.end());
+        Positions positions(solution_hungraian.begin(), solution_hungraian.end());
 
-        return solution;
+        return positions;
       }
 
       std::vector<bool> position_is_taken(task.b_size);
-      Solution solution(task.b_size);
+      Positions positions(task.b_size);
       for (Vertex v = 0; v < task.b_size; ++v) {
         std::vector<Vertex> permutation(task.b_size);
         std::iota(permutation.begin(), permutation.end(), 0);
         std::sort(permutation.begin(), permutation.end(), [&](Vertex lhs, Vertex rhs) {
           return matrix[v][lhs] < matrix[v][rhs];
         });
-        for (Vertex position : permutation) {
+        for (Position position : permutation) {
           if (position_is_taken[position]) {
             continue;
           }
           position_is_taken[position] = true;
-          solution[v] = position;
+          positions[v] = position;
           break;
         }
       }
 
-      return solution;
+      return positions;
     }
 
 
   }// namespace greedy
 
   namespace trivial {
-    Solution Solve(const Task& task) {
-      Solution solution(task.b_size);
-      std::iota(solution.begin(), solution.end(), 0);
-      return solution;
+    Positions Solve(const Task& task) {
+      Positions positions(task.b_size);
+      std::iota(positions.begin(), positions.end(), 0);
+      return positions;
     }
   }// namespace trivial
 
@@ -185,14 +185,14 @@ int main(int argc, char** argv) {
   uint64_t bytes = matrix_size * sizeof(ocm::heuristic::greedy::Weight);
   std::cerr << "matrix_size = " << matrix_size << ", matrix_size = " << bytes << "\n";
 
-  ocm::Solution solution;
+  ocm::Positions positions;
   if (bytes * 2 >= ocm::heuristic::kMemoryLimitBytes) {
     std::cerr << "Fallback to trivial solution\n";
-    solution = ocm::heuristic::trivial::Solve(task);
+    positions = ocm::heuristic::trivial::Solve(task);
   } else {
-    solution = ocm::heuristic::greedy::Solve(task);
+    positions = ocm::heuristic::greedy::Solve(task);
   }
-  std::cerr << "final_score = " << ocm::CountIntersections(task, solution) << "\n";
-  ocm::SaveSolution(task, solution, os);
+  std::cerr << "final_score = " << ocm::CountIntersections(task, positions) << "\n";
+  ocm::SaveSolution(task, positions, os);
   return 0;
 }
