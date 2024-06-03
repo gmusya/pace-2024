@@ -40,7 +40,7 @@ void SaveSolution(const Task& task, const Positions& positions, std::ostream& os
 
 uint64_t CountIntersections(const Task& task, const Positions& positions);
 
-Graph EdgesToGraph(const std::vector<Edge>& edges);
+Graph EdgesToGraph(const std::vector<Edge>& edges, uint32_t vertex_count);
 
 IntersectionMatrix BuildIntersectionMatrix(const Graph& graph);
 

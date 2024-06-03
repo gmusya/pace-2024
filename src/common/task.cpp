@@ -191,6 +191,24 @@ uint64_t CountIntersections(const Task& task, const Positions& positions) {
 }
 
 namespace {
+  std::pair<uint64_t, uint64_t>
+  CountIntersectionsSwappedNaive(const std::vector<ocm::Vertex>& lhs,
+                                 const std::vector<ocm::Vertex>& rhs) {
+    uint64_t intersections_before_swap = 0;
+    uint64_t intersections_after_swap = 0;
+    for (const auto& x : lhs) {
+      for (const auto& y : rhs) {
+        if (x > y) {
+          ++intersections_before_swap;
+        }
+        if (x < y) {
+          ++intersections_after_swap;
+        }
+      }
+    }
+    return std::make_pair(intersections_before_swap, intersections_after_swap);
+  }
+
   std::pair<uint64_t, uint64_t> CountIntersectionsSwapped(const std::vector<ocm::Vertex>& lhs,
                                                           const std::vector<ocm::Vertex>& rhs) {
     uint64_t intersections_before_swap = 0;
@@ -215,8 +233,8 @@ namespace {
   }
 }// namespace
 
-Graph EdgesToGraph(const std::vector<Edge>& edges) {
-  Graph result;
+Graph EdgesToGraph(const std::vector<Edge>& edges, uint32_t vertex_count) {
+  Graph result(vertex_count);
   for (const auto& [u, v] : edges) {
     if (v >= result.size()) {
       result.resize(v + 1);
