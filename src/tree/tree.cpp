@@ -44,8 +44,24 @@ namespace tree {
 
     OrderMatrix best_matrix;
 
-    UpdatedEdges AddEdge(int from, int to) {
-      UpdatedEdges edges;
+    uint32_t updated_edges_pool_iter = 0;
+    std::vector<UpdatedEdges> updated_edges_pool;
+
+    UpdatedEdges& GetFromPool() {
+      if (updated_edges_pool_iter >= updated_edges_pool.size()) {
+        updated_edges_pool.emplace_back();
+      }
+      ++updated_edges_pool_iter;
+      return updated_edges_pool[updated_edges_pool_iter - 1];
+    }
+
+    void ReleaseToPool() {
+      updated_edges_pool[updated_edges_pool_iter - 1].clear();
+      --updated_edges_pool_iter;
+    }
+
+    UpdatedEdges& AddEdge(int from, int to) {
+      UpdatedEdges& edges = GetFromPool();
       edges.emplace_back(from, to);
 
       for (Vertex first : inverse_graph[from]) {
@@ -87,6 +103,7 @@ namespace tree {
         current_intersections -= cost_matrix[x][y];
         add_min_bound += std::min(cost_matrix[x][y], cost_matrix[y][x]);
       }
+      ReleaseToPool();
     }
   };
 
@@ -104,13 +121,13 @@ namespace tree {
         continue;
       }
       edge_found = true;
-      std::vector<Edge> order;
+      std::array<Edge, 2> order;
       if (tree_state.cost_matrix[u][v] < tree_state.cost_matrix[v][u]) {
-        order.emplace_back(u, v);
-        order.emplace_back(v, u);
+        order[0] = {u, v};
+        order[1] = {v, u};
       } else {
-        order.emplace_back(v, u);
-        order.emplace_back(u, v);
+        order[0] = {v, u};
+        order[1] = {u, v};
       }
       for (const Edge& edge_to_add : order) {
         if (tree_state.best_intersections == tree_state.lower_bound) {
@@ -118,12 +135,9 @@ namespace tree {
         }
         const auto& [from, to] = edge_to_add;
 
-        UpdatedEdges edges = tree_state.AddEdge(from, to);
+        const UpdatedEdges& edges = tree_state.AddEdge(from, to);
         Solve(tree_state);
         tree_state.UndoEdge(edges);
-
-        auto after1 = tree_state.current_intersections;
-        auto after2 = tree_state.add_min_bound;
       }
     }
     if (!edge_found) {
