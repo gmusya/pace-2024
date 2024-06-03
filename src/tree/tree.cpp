@@ -11,7 +11,7 @@ namespace ocm {
 
 namespace tree {
 
-  enum class State { Unknown, None, Forward, Backward };
+  enum class State { Unknown, Forward, Backward };
 
   using OrderMatrix = std::vector<std::vector<State>>;
   using UpdatedEdges = std::vector<Edge>;
@@ -24,7 +24,6 @@ namespace tree {
       inverse_graph.resize(sz);
       current_intersections = 0;
       best_intersections = (1ull << 48);
-      add_to_answer = 0;
       add_min_bound = 0;
       best_matrix = matrix;
     }
@@ -38,7 +37,6 @@ namespace tree {
     uint64_t current_intersections;
     uint64_t best_intersections;
     uint64_t lower_bound;
-    uint64_t add_to_answer;
 
     uint64_t add_min_bound;
 
@@ -97,8 +95,7 @@ namespace tree {
         tree_state.best_intersections) {
       return;
     }
-    ENSURE_OR_THROW(tree_state.current_intersections + tree_state.add_min_bound +
-                            tree_state.add_to_answer >=
+    ENSURE_OR_THROW(tree_state.current_intersections + tree_state.add_min_bound >=
                     tree_state.lower_bound);
     bool edge_found = false;
 
@@ -116,12 +113,10 @@ namespace tree {
         order.emplace_back(u, v);
       }
       for (const Edge& edge_to_add : order) {
-        if (tree_state.best_intersections + tree_state.add_to_answer == tree_state.lower_bound) {
+        if (tree_state.best_intersections == tree_state.lower_bound) {
           return;
         }
         const auto& [from, to] = edge_to_add;
-        auto before1 = tree_state.current_intersections;
-        auto before2 = tree_state.add_min_bound;
 
         UpdatedEdges edges = tree_state.AddEdge(from, to);
         Solve(tree_state);
@@ -129,19 +124,13 @@ namespace tree {
 
         auto after1 = tree_state.current_intersections;
         auto after2 = tree_state.add_min_bound;
-
-        ENSURE_OR_THROW(before1 == after1);
-        ENSURE_OR_THROW(before2 == after2);
       }
     }
     if (!edge_found) {
-      ENSURE_OR_THROW(tree_state.add_min_bound == 0);
-
-      std::cerr << "tree_state.add_to_answer = " << tree_state.add_to_answer << "\n";
       std::cerr << "best_intersections = "
-                << tree_state.current_intersections + tree_state.add_to_answer << "\n";
+                << tree_state.current_intersections + tree_state.add_min_bound << "\n";
       tree_state.best_matrix = tree_state.matrix;
-      tree_state.best_intersections = tree_state.current_intersections;
+      tree_state.best_intersections = tree_state.current_intersections + tree_state.add_min_bound;
     }
   }
 
@@ -182,20 +171,6 @@ int main(int argc, char** argv) {
 
   for (ocm::Vertex u = 0; u < state.matrix.size(); ++u) {
     for (ocm::Vertex v = 0; v < state.matrix.size(); ++v) {
-      if (u == v) {
-        continue;
-      }
-      if (inter_matrix[u][v] == inter_matrix[v][u]) {
-        state.matrix[u][v] = ocm::tree::State::None;
-        if (u < v) {
-          state.add_to_answer += inter_matrix[u][v];
-        }
-      }
-    }
-  }
-
-  for (ocm::Vertex u = 0; u < state.matrix.size(); ++u) {
-    for (ocm::Vertex v = 0; v < state.matrix.size(); ++v) {
       if (inter_matrix[u][v] == 0 && inter_matrix[v][u] > 0) {
         if (state.matrix[u][v] == ocm::tree::State::Unknown) {
           state.AddEdge(u, v);
@@ -229,9 +204,18 @@ int main(int argc, char** argv) {
                                       state.cost_matrix[rhs.second][rhs.first]);
             });
 
+  while (!state.edge_order.empty()) {
+    const auto& [u, v] = state.edge_order.back();
+    if (state.cost_matrix[u][v] == state.cost_matrix[v][u]) {
+      state.edge_order.pop_back();
+    } else {
+      break;
+    }
+  }
+
   Solve(state);
 
-  std::cerr << "best = " << state.best_intersections + state.add_to_answer << '\n';
+  std::cerr << "best = " << state.best_intersections << '\n';
   std::cerr << "state.matrix.size() = " << state.matrix.size() << '\n';
 
   std::vector<uint64_t> count(state.matrix.size());
@@ -264,7 +248,7 @@ int main(int argc, char** argv) {
   auto intersections = ocm::CountIntersections(task, positions);
   std::cerr << "intersections = " << intersections << std::endl;
   ENSURE_OR_THROW(inersections_var1 == intersections);
-  ENSURE_OR_THROW(intersections == state.best_intersections + state.add_to_answer);
+  ENSURE_OR_THROW(intersections == state.best_intersections);
   for (const auto& v : result) {
     std::cout << v + task.a_size + 1 << '\n';
   }
