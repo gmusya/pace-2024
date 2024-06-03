@@ -2,6 +2,7 @@
 #include "common/task.h"
 
 #include <algorithm>
+#include <bitset>
 #include <fstream>
 #include <limits>
 #include <numeric>
@@ -16,12 +17,17 @@ namespace tree {
   using OrderMatrix = std::vector<std::vector<State>>;
   using UpdatedEdges = std::vector<Edge>;
 
+  constexpr int kBitsetSize = 8192;
+  using Bitset = std::bitset<kBitsetSize>;
+
   struct TreeState {
     TreeState(IntersectionMatrix tmp) : cost_matrix(std::move(tmp)) {
       size_t sz = cost_matrix.size();
       matrix.resize(sz, std::vector<State>(sz));
       graph.resize(sz);
       inverse_graph.resize(sz);
+      graph_as_bitset.resize(sz);
+      inverse_graph_as_bitset.resize(sz);
       current_intersections = 0;
       best_intersections = (1ull << 48);
       add_min_bound = 0;
@@ -33,6 +39,8 @@ namespace tree {
     OrderMatrix matrix;
     Graph graph;
     Graph inverse_graph;
+    std::vector<Bitset> graph_as_bitset;
+    std::vector<Bitset> inverse_graph_as_bitset;
 
     uint64_t current_intersections;
     uint64_t best_intersections;
@@ -64,27 +72,46 @@ namespace tree {
       UpdatedEdges& edges = GetFromPool();
       edges.emplace_back(from, to);
 
-      for (Vertex first : inverse_graph[from]) {
-        for (Vertex last : graph[to]) {
-          if (matrix[first][last] == State::Unknown) {
-            edges.emplace_back(first, last);
+      uint64_t current_added_edges = 0;
+      {
+        Bitset candidates = inverse_graph_as_bitset[from] & ~inverse_graph_as_bitset[to];
+        if (candidates.any()) {
+          for (size_t position = candidates._Find_first(); position < kBitsetSize;
+               position = candidates._Find_next(position)) {
+            edges.emplace_back(position, to);
+            ++current_added_edges;
           }
         }
       }
-      for (Vertex first : inverse_graph[from]) {
-        if (matrix[first][to] == State::Unknown) {
-          edges.emplace_back(first, to);
+      {
+        Bitset candidates = graph_as_bitset[to] & ~graph_as_bitset[from];
+        if (candidates.any()) {
+          for (size_t position = candidates._Find_first(); position < kBitsetSize;
+               position = candidates._Find_next(position)) {
+            edges.emplace_back(from, position);
+            ++current_added_edges;
+          }
         }
       }
-      for (Vertex last : graph[to]) {
-        if (matrix[from][last] == State::Unknown) {
-          edges.emplace_back(from, last);
+
+      if (current_added_edges > 0) {
+        for (Vertex first : inverse_graph[from]) {
+          Bitset candidates = ~graph_as_bitset[first] & graph_as_bitset[to];
+          if (candidates.any()) {
+            for (size_t position = candidates._Find_first(); position < kBitsetSize;
+                 position = candidates._Find_next(position)) {
+              edges.emplace_back(first, position);
+              ++current_added_edges;
+            }
+          }
         }
       }
 
       for (const auto& [x, y] : edges) {
         matrix[x][y] = State::Forward;
         matrix[y][x] = State::Backward;
+        graph_as_bitset[x][y] = 1;
+        inverse_graph_as_bitset[y][x] = 1;
         graph[x].emplace_back(y);
         inverse_graph[y].emplace_back(x);
         current_intersections += cost_matrix[x][y];
@@ -98,6 +125,8 @@ namespace tree {
       for (const auto& [x, y] : edges) {
         matrix[x][y] = State::Unknown;
         matrix[y][x] = State::Unknown;
+        graph_as_bitset[x][y] = 0;
+        inverse_graph_as_bitset[y][x] = 0;
         graph[x].pop_back();
         inverse_graph[y].pop_back();
         current_intersections -= cost_matrix[x][y];
@@ -129,6 +158,8 @@ namespace tree {
         order[0] = {v, u};
         order[1] = {u, v};
       }
+      size_t fine = std::max(tree_state.cost_matrix[u][v], tree_state.cost_matrix[v][u]) -
+                    std::min(tree_state.cost_matrix[u][v], tree_state.cost_matrix[v][u]);
       for (const Edge& edge_to_add : order) {
         if (tree_state.best_intersections == tree_state.lower_bound) {
           return;
@@ -138,6 +169,11 @@ namespace tree {
         const UpdatedEdges& edges = tree_state.AddEdge(from, to);
         Solve(tree_state);
         tree_state.UndoEdge(edges);
+
+        if (tree_state.current_intersections + tree_state.add_min_bound + fine >=
+            tree_state.best_intersections) {
+          return;
+        }
       }
     }
     if (!edge_found) {
