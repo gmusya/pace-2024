@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <deque>
 #include <fstream>
 #include <limits>
 #include <numeric>
@@ -53,7 +54,7 @@ namespace tree {
     OrderMatrix best_matrix;
 
     uint32_t updated_edges_pool_iter = 0;
-    std::vector<UpdatedEdges> updated_edges_pool;
+    std::deque<UpdatedEdges> updated_edges_pool;
 
     UpdatedEdges& GetFromPool() {
       if (updated_edges_pool_iter >= updated_edges_pool.size()) {
@@ -230,31 +231,10 @@ namespace condensation {
   }
 }// namespace condensation
 
-}// namespace ocm
-
-int main(int argc, char** argv) {
-  std::optional<std::ifstream> input;
-  if (argc == 3) {
-    input.emplace(argv[1]);
-  }
-  std::optional<std::ofstream> output;
-  if (argc == 3) {
-    output.emplace(argv[2]);
-  }
-  std::istream& is = argc == 3 ? input.value() : std::cin;
-  std::ostream& os = argc == 3 ? output.value() : std::cout;
-
-  ocm::Task task = ocm::Task::FromStreamCutwidth(is);
-  // ocm::Task task = ocm::Task::FromStream(is);
-
-  std::cerr << "a_size = " << task.a_size << ", b_size = " << task.b_size
-            << ", edges_count = " << task.edges.size() << "\n";
-  auto graph = ocm::EdgesToGraph(task.edges, task.b_size);
-  auto inter_matrix = ocm::BuildIntersectionMatrix(graph);
-
+Positions SolveForIntersectionMatrix(const IntersectionMatrix& inter_matrix) {
   uint32_t lower_bound = 0;
-  for (ocm::Vertex u = 0; u < graph.size(); ++u) {
-    for (ocm::Vertex v = u + 1; v < graph.size(); ++v) {
+  for (ocm::Vertex u = 0; u < inter_matrix.size(); ++u) {
+    for (ocm::Vertex v = u + 1; v < inter_matrix.size(); ++v) {
       lower_bound += std::min(inter_matrix[u][v], inter_matrix[v][u]);
     }
   }
@@ -281,40 +261,6 @@ int main(int argc, char** argv) {
       }
     }
   }
-
-  {
-    ocm::Graph graph(task.b_size);
-    for (ocm::Vertex u = 0; u < state.matrix.size(); ++u) {
-      for (ocm::Vertex v = 0; v < state.matrix.size(); ++v) {
-        if (state.cost_matrix[u][v] < state.cost_matrix[v][u]) {
-          graph[u].emplace_back(v);
-        }
-      }
-    }
-
-    auto components = ocm::condensation::BuildCondensation(graph);
-    std::cerr << "components.size() = " << components.size() << std::endl;
-    for (const auto& comp : components) {
-      if (comp.size() > 1) {
-        uint32_t improvement = std::numeric_limits<uint32_t>::max();
-        for (const auto& u : comp) {
-          for (const auto& v : comp) {
-            if (u == v) {
-              continue;
-            }
-            improvement =
-                    std::min(improvement,
-                             std::max(state.cost_matrix[u][v], state.cost_matrix[v][u]) -
-                                     std::min(state.cost_matrix[u][v], state.cost_matrix[v][u]));
-          }
-        }
-        state.lower_bound += improvement;
-      }
-    }
-  }
-
-  std::cerr << "new lower_bound = " << state.lower_bound << '\n';
-
 
   state.best_matrix = state.matrix;
 
@@ -362,12 +308,69 @@ int main(int argc, char** argv) {
     return count[lhs] > count[rhs];
   });
 
-  auto positions = ocm::SolutionToPositions(result);
+  return ocm::SolutionToPositions(result);
+}
+
+}// namespace ocm
+
+int main(int argc, char** argv) {
+  std::optional<std::ifstream> input;
+  if (argc == 3) {
+    input.emplace(argv[1]);
+  }
+  std::optional<std::ofstream> output;
+  if (argc == 3) {
+    output.emplace(argv[2]);
+  }
+  std::istream& is = argc == 3 ? input.value() : std::cin;
+  std::ostream& os = argc == 3 ? output.value() : std::cout;
+
+  ocm::Task task = ocm::Task::FromStreamCutwidth(is);
+  // ocm::Task task = ocm::Task::FromStream(is);
+
+  std::cerr << "a_size = " << task.a_size << ", b_size = " << task.b_size
+            << ", edges_count = " << task.edges.size() << "\n";
+  auto inter_matrix = ocm::BuildIntersectionMatrix(ocm::EdgesToGraph(task.edges, task.b_size));
+
+  ocm::Graph graph(task.b_size);
+  for (ocm::Vertex u = 0; u < inter_matrix.size(); ++u) {
+    for (ocm::Vertex v = 0; v < inter_matrix.size(); ++v) {
+      if (inter_matrix[u][v] < inter_matrix[v][u]) {
+        graph[u].emplace_back(v);
+      }
+    }
+  }
+
+  auto components = ocm::condensation::BuildCondensation(graph);
+  std::cerr << "components.size() = " << components.size() << std::endl;
+
+  std::vector<ocm::Vertex> answer;
+
+  for (const auto& comp : components) {
+    ocm::IntersectionMatrix matrix(comp.size(), std::vector<uint32_t>(comp.size()));
+    for (uint32_t i = 0; i < comp.size(); ++i) {
+      for (uint32_t j = 0; j < comp.size(); ++j) {
+        matrix[i][j] = inter_matrix[comp[i]][comp[j]];
+      }
+    }
+    auto positions = comp.size() > 1 ? ocm::SolveForIntersectionMatrix(matrix) : ocm::Positions{0};
+    std::vector<ocm::Vertex> vertices(comp.size());
+    for (size_t i = 0; i < comp.size(); ++i) {
+      vertices[positions[i]] = comp[i];
+    }
+
+    for (const auto& v : vertices) {
+      answer.emplace_back(v);
+    }
+  }
+
+  auto positions = ocm::SolutionToPositions(answer);
+
   uint64_t inersections_var1 = 0;
-  for (ocm::Vertex u = 0; u < state.best_matrix.size(); ++u) {
-    for (ocm::Vertex v = 0; v < state.best_matrix.size(); ++v) {
+  for (ocm::Vertex u = 0; u < inter_matrix.size(); ++u) {
+    for (ocm::Vertex v = 0; v < inter_matrix.size(); ++v) {
       if (positions[u] < positions[v]) {
-        inersections_var1 += state.cost_matrix[u][v];
+        inersections_var1 += inter_matrix[u][v];
       }
     }
   }
@@ -376,7 +379,8 @@ int main(int argc, char** argv) {
   auto intersections = ocm::CountIntersections(task, positions);
   std::cerr << "intersections = " << intersections << std::endl;
   ENSURE_OR_THROW(inersections_var1 == intersections);
-  ENSURE_OR_THROW(intersections == state.best_intersections);
+
+  auto result = ocm::PositionsToSolution(positions);
   for (const auto& v : result) {
     std::cout << v + task.a_size + 1 << '\n';
   }
