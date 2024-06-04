@@ -141,8 +141,6 @@ namespace tree {
         tree_state.best_intersections) {
       return;
     }
-    ENSURE_OR_THROW(tree_state.current_intersections + tree_state.add_min_bound >=
-                    tree_state.lower_bound);
     bool edge_found = false;
 
     for (const auto& [u, v] : tree_state.edge_order) {
@@ -185,6 +183,52 @@ namespace tree {
   }
 
 }// namespace tree
+
+namespace condensation {
+  void Go(Vertex v, std::vector<bool>& used, std::vector<Vertex>& component, const Graph& graph) {
+    used[v] = true;
+    for (const auto& u : graph[v]) {
+      if (used[u]) {
+        continue;
+      }
+      Go(u, used, component, graph);
+    }
+    component.emplace_back(v);
+  }
+
+  Graph BuildInverseGraph(const Graph& graph) {
+    Graph inverse_graph(graph.size());
+    for (Vertex v = 0; v < graph.size(); ++v) {
+      for (Vertex u : graph[v]) {
+        inverse_graph[u].emplace_back(v);
+      }
+    }
+    return inverse_graph;
+  }
+
+  std::vector<std::vector<Vertex>> BuildCondensation(const Graph& graph) {
+    Graph inverse_graph = BuildInverseGraph(graph);
+
+    std::vector<bool> used(graph.size());
+    std::vector<Vertex> pseudo_top_sort;
+    for (Vertex v = 0; v < graph.size(); ++v) {
+      if (!used[v]) {
+        Go(v, used, pseudo_top_sort, graph);
+      }
+    }
+    std::reverse(pseudo_top_sort.begin(), pseudo_top_sort.end());
+
+    used.assign(graph.size(), false);
+    std::vector<std::vector<Vertex>> components;
+    for (Vertex v : pseudo_top_sort) {
+      if (!used[v]) {
+        components.emplace_back();
+        Go(v, used, components.back(), inverse_graph);
+      }
+    }
+    return components;
+  }
+}// namespace condensation
 
 }// namespace ocm
 
@@ -237,6 +281,40 @@ int main(int argc, char** argv) {
       }
     }
   }
+
+  {
+    ocm::Graph graph(task.b_size);
+    for (ocm::Vertex u = 0; u < state.matrix.size(); ++u) {
+      for (ocm::Vertex v = 0; v < state.matrix.size(); ++v) {
+        if (state.cost_matrix[u][v] < state.cost_matrix[v][u]) {
+          graph[u].emplace_back(v);
+        }
+      }
+    }
+
+    auto components = ocm::condensation::BuildCondensation(graph);
+    std::cerr << "components.size() = " << components.size() << std::endl;
+    for (const auto& comp : components) {
+      if (comp.size() > 1) {
+        uint32_t improvement = std::numeric_limits<uint32_t>::max();
+        for (const auto& u : comp) {
+          for (const auto& v : comp) {
+            if (u == v) {
+              continue;
+            }
+            improvement =
+                    std::min(improvement,
+                             std::max(state.cost_matrix[u][v], state.cost_matrix[v][u]) -
+                                     std::min(state.cost_matrix[u][v], state.cost_matrix[v][u]));
+          }
+        }
+        state.lower_bound += improvement;
+      }
+    }
+  }
+
+  std::cerr << "new lower_bound = " << state.lower_bound << '\n';
+
 
   state.best_matrix = state.matrix;
 
