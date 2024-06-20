@@ -22,4 +22,5 @@ endif ()
 
 add_subdirectory(common)
 add_subdirectory(heuristic)
+add_subdirectory(tree)
 
